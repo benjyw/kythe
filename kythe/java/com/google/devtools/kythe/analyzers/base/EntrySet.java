@@ -238,12 +238,17 @@ public class EntrySet {
   protected static String buildSignature(
       ImmutableList<String> salts, ImmutableSortedMap<String, byte[]> properties) {
     Hasher signature = SIGNATURE_HASH_FUNCTION.newHasher();
+    System.err.println(String.format(">>>>>>>> BUILDING SIG"));
     for (String salt : salts) {
+      System.err.println(String.format("    SALT: %s", salt));
       signature.putString(salt, PROPERTY_VALUE_CHARSET);
     }
     for (Map.Entry<String, byte[]> property : properties.entrySet()) {
+      System.err.println(String.format("    %s: %s", property.getKey(), new String(property.getValue())));
       signature.putString(property.getKey(), PROPERTY_VALUE_CHARSET).putBytes(property.getValue());
     }
-    return signature.hash().toString();
+    String ret = signature.hash().toString();
+    System.err.println(String.format("<<<<<<<<<<<< %s", ret));
+    return ret;
   }
 }
