@@ -29,6 +29,7 @@ import com.google.devtools.kythe.platform.shared.StatisticsCollector;
 import com.google.devtools.kythe.proto.Analysis.CompilationUnit.FileInput;
 import com.google.devtools.kythe.proto.Storage.VName;
 import com.google.devtools.kythe.util.Span;
+import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symbol.ClassSymbol;
 import com.sun.tools.javac.code.Symbol.MethodSymbol;
@@ -109,19 +110,44 @@ public class JavaEntrySets extends KytheEntrySets {
 
       NodeKind kind = elementNodeKind(sym.getKind());
       NodeBuilder builder = kind != null ? newNode(kind) : newNode(sym.getKind().toString());
-      node =
-          builder
-              .setCorpusPath(CorpusPath.fromVName(v))
-              .addSignatureSalt(signature)
-              .addSignatureSalt("" + hashSymbol(sym))
-              .setProperty("format", format)
-              .build();
+      builder = builder
+          .setCorpusPath(CorpusPath.fromVName(v))
+          .addSignatureSalt(signature)
+          .addSignatureSalt("" + hashSymbol(sym))
+          .setProperty("format", format);
+      builder = addSpecifics(sym, builder);
+      node = builder.build();
       emitName(node, signature);
       node.emit(getEmitter());
     }
 
     symbolNodes.put(sym, node);
     return node;
+  }
+
+  private static NodeBuilder addSpecifics(Symbol sym, NodeBuilder builder) {
+    switch(sym.getKind()) {
+      case CLASS:
+      case ENUM:
+      case INTERFACE:
+        builder = builder.setProperty("access", accessFlag(sym.flags()));
+        break;
+      default:
+        break;
+    }
+    return builder;
+  }
+
+  private static String accessFlag(long flags) {
+    if ((flags & Flags.PUBLIC) != 0) {
+      return "public";
+    } else if ((flags & Flags.PRIVATE) != 0) {
+      return "private";
+    } else if ((flags & Flags.PROTECTED) != 0) {
+      return "protected";
+    } else {
+      return "default";
+    }
   }
 
   public EntrySet getDoc(Positions filePositions, String text, Iterable<EntrySet> params) {

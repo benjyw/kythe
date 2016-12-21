@@ -7,6 +7,7 @@ package pkg;
 //- @Classes defines/binding N
 //- N.node/kind record
 //- N.subkind class
+//- N.access public
 //- N childof Package
 public class Classes {
 
@@ -20,6 +21,7 @@ public class Classes {
   //- @StaticInner defines/binding SI
   //- SI.node/kind record
   //- SI.subkind class
+  //- SI.access private
   //- SI childof N
   private static class StaticInner {
     //- Ctor childof SI
@@ -34,12 +36,15 @@ public class Classes {
   //- @Inner defines/binding I
   //- I.node/kind record
   //- I.subkind class
+  //- I.access protected
+  //- I.access protected
   //- I childof N
-  private class Inner {}
+  protected final class Inner {}
 
   //- @Enum defines/binding E
   //- E.node/kind sum
   //- E.subkind enumClass
+  //- E.access default
   //- E childof N
-  private static enum Enum {}
+  static enum Enum {}
 }
