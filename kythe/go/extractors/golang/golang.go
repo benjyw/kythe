@@ -43,8 +43,10 @@ import (
 
 	"kythe.io/kythe/go/extractors/govname"
 	"kythe.io/kythe/go/platform/indexpack"
+	"kythe.io/kythe/go/platform/kindex"
 	"kythe.io/kythe/go/platform/vfs"
 
+	"bitbucket.org/creachadair/stringset"
 	"golang.org/x/net/context"
 
 	apb "kythe.io/kythe/proto/analysis_proto"
@@ -115,6 +117,20 @@ func (e *Extractor) mapPackage(importPath string, bp *build.Package) {
 	}
 }
 
+// readFile reads the contents of path as resolved through the extracted settings.
+func (e *Extractor) readFile(ctx context.Context, path string) ([]byte, error) {
+	data, err := vfs.ReadFile(ctx, path)
+	if err != nil {
+		// If there's an alternative installation path, and this is a path that
+		// could potentially be there, try that.
+		if i := strings.Index(path, "/pkg/"); i >= 0 && e.AltInstallPath != "" {
+			alt := e.AltInstallPath + path[i:]
+			return vfs.ReadFile(ctx, alt)
+		}
+	}
+	return data, err
+}
+
 // fetchAndStore reads the contents of path and stores them into a, returning
 // the digest of the contents.  The path to digest mapping is cached so that
 // repeated uses of the same file will avoid redundant work.
@@ -122,16 +138,7 @@ func (e *Extractor) fetchAndStore(ctx context.Context, path string, a *indexpack
 	if digest, ok := e.fmap[path]; ok {
 		return digest, nil
 	}
-	data, err := vfs.ReadFile(ctx, path)
-	if err != nil {
-		// If there's an alternative installation path, and this is a path that
-		// could potentially be there, try that.
-		if i := strings.Index(path, "/pkg/"); i >= 0 && e.AltInstallPath != "" {
-			alt := e.AltInstallPath + path[i:]
-			data, err = vfs.ReadFile(ctx, alt)
-			// fall through to the recheck below
-		}
-	}
+	data, err := e.readFile(ctx, path)
 	if err != nil {
 		return "", err
 	}
@@ -162,7 +169,9 @@ func (e *Extractor) vnameFor(bp *build.Package) *spb.VName {
 	if e.PackageVName != nil {
 		return e.PackageVName(e.Corpus, bp)
 	}
-	return govname.ForPackage(e.Corpus, bp)
+	v := govname.ForPackage(e.Corpus, bp)
+	v.Signature = "" // not useful in this context
+	return v
 }
 
 // dirToImport converts a directory name to an import path, if possible.
@@ -244,7 +253,8 @@ func (e *Extractor) Extract() error {
 
 // Package represents a single Go package extracted from local files.
 type Package struct {
-	ext *Extractor // pointer back to the extractor that generated this package
+	ext  *Extractor    // pointer back to the extractor that generated this package
+	seen stringset.Set // input files already added to this package
 
 	Path         string                 // Import or directory path
 	Err          error                  // Error discovered during processing
@@ -351,12 +361,38 @@ func (p *Package) Store(ctx context.Context, a *indexpack.Archive) ([]string, er
 	return unitFiles, nil
 }
 
+// extFetcher implements analysis.Fetcher by dispatching to an extractor.
+type extFetcher struct {
+	ctx context.Context
+	ext *Extractor
+}
+
+// Fetch implements the analysis.Fetcher interface. Where this is used, the
+// digest argument is actually the fully-expanded path, and the nominal path is
+// ignored.
+func (e extFetcher) Fetch(_, digest string) ([]byte, error) { return e.ext.readFile(e.ctx, digest) }
+
+// EachUnit calls f with a compilation record for each unit in p.  If f reports
+// an error, that error is returned by EachUnit.
+func (p *Package) EachUnit(ctx context.Context, f func(*kindex.Compilation) error) error {
+	for _, cu := range p.Units {
+		idx, err := kindex.FromUnit(cu, extFetcher{ctx: ctx, ext: p.ext})
+		if err != nil {
+			return fmt.Errorf("loading compilation: %v", err)
+		}
+		if err := f(idx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // addFiles adds a required input to cu for each file whose basename or path is
 // given in names.  If base != "", it is prejoined to each name.
 // The path of the input will have root/ trimmed from the beginning.
 // The digest will be the complete path as written -- this will be replaced
 // with the content digest in the fetcher.
-func (*Package) addFiles(cu *apb.CompilationUnit, root, base string, names []string) {
+func (p *Package) addFiles(cu *apb.CompilationUnit, root, base string, names []string) {
 	for _, name := range names {
 		path := name
 		if base != "" {
@@ -382,11 +418,15 @@ func (p *Package) addSource(cu *apb.CompilationUnit, root, base string, names []
 
 // addInput acts as addFiles for the output of a package.
 func (p *Package) addInput(cu *apb.CompilationUnit, bp *build.Package) {
-	p.addFiles(cu, bp.Root, "", []string{bp.PkgObj})
+	obj := bp.PkgObj
+	if !p.seen.Contains(obj) {
+		p.seen.Add(obj)
+		p.addFiles(cu, bp.Root, "", []string{obj})
 
-	// Populate the vname for the input based on the corpus of the package.
-	fi := cu.RequiredInput[len(cu.RequiredInput)-1]
-	fi.VName = p.ext.vnameFor(bp)
+		// Populate the vname for the input based on the corpus of the package.
+		fi := cu.RequiredInput[len(cu.RequiredInput)-1]
+		fi.VName = p.ext.vnameFor(bp)
+	}
 }
 
 // addEnv adds an environment variable to cu.

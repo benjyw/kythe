@@ -16,10 +16,10 @@ cc_library(
         "-Wno-implicit-fallthrough",
     ],
     deps = [
-        "//external:libcrypto",
         "//third_party/proto:cc_wkt_protos",
         "//third_party/proto:protobuf",
         "//third_party/rapidjson",
+        "@boringssl//:crypto",
         "@com_github_gflags_gflags//:gflags",
         "@com_github_google_glog//:glog",
     ],
@@ -84,8 +84,8 @@ cc_library(
         "//kythe/proto:cxx_proto_cc",
         "//kythe/proto:storage_proto_cc",
         "//third_party/llvm",
-        "//third_party/proto:protobuf",
         "//third_party/proto:cc_wkt_protos",
+        "//third_party/proto:protobuf",
         "//third_party/rapidjson",
         "//third_party/zlib",
         "@com_github_gflags_gflags//:gflags",
@@ -135,7 +135,7 @@ cc_library(
     deps = [
         ":lib",
         "//third_party/llvm",
-        "@com_github_google_googletest//:googletest",
+        "//third_party:gtest",
     ],
 )
 
@@ -161,7 +161,7 @@ cc_library(
     deps = [
         ":lib",
         "//third_party/proto:protobuf",
-        "@com_github_google_googletest//:googletest",
+        "//third_party:gtest",
         "@com_googlesource_code_re2//:re2",
     ],
 )
@@ -188,7 +188,7 @@ cc_library(
     deps = [
         ":lib",
         "//third_party/llvm",
-        "@com_github_google_googletest//:googletest",
+        "//third_party:gtest",
     ],
 )
 
@@ -219,7 +219,7 @@ cc_library(
         "//third_party/zlib",
         "@com_github_gflags_gflags//:gflags",
         "@com_github_google_glog//:glog",
-        "@com_github_google_googletest//:googletest",
+        "//third_party:gtest",
     ],
 )
 
@@ -246,7 +246,7 @@ cc_library(
         ":json_proto",
         "//kythe/proto:analysis_proto_cc",
         "//third_party/proto:protobuf",
-        "@com_github_google_googletest//:googletest",
+        "//third_party:gtest",
         "@com_googlesource_code_re2//:re2",
     ],
 )
@@ -303,7 +303,7 @@ cc_library(
         "//third_party/proto:protobuf",
         "@com_github_gflags_gflags//:gflags",
         "@com_github_google_glog//:glog",
-        "@com_github_google_googletest//:googletest",
+        "//third_party:gtest",
     ],
 )
 

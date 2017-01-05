@@ -11,12 +11,6 @@ clang_configure()
 load("//tools/build_rules/config:system.bzl", "cc_system_package")
 
 cc_system_package(
-    name = "libcrypto",
-    default = "/usr/local/opt/openssl",
-    envvar = "OPENSSL_HOME",
-)
-
-cc_system_package(
     name = "libuuid",
     default = "/usr/local/opt/ossp-uuid",
     envvar = "UUID_HOME",
@@ -29,11 +23,19 @@ cc_system_package(
     envvar = "MEMCACHED_HOME",
 )
 
+http_archive(
+    name = "boringssl",  # Must match upstream workspace name.
+    # Gitiles creates gzip files with an embedded timestamp, so we cannot use
+    # sha256 to validate the archives.  We must rely on the commit hash and https.
+    # Commits must come from the master-with-bazel branch.
+    url = "https://boringssl.googlesource.com/boringssl/+archive/9612e1d2ce16a1bd67fbbe6ce969839af4d84a29.tar.gz",
+)
+
 new_http_archive(
     name = "com_github_google_googletest",
     build_file = "third_party/googletest.BUILD",
     sha256 = "f3ed3b58511efd272eb074a3a6d6fb79d7c2e6a0e374323d1e6bcbcc1ef141bf",
-    strip_prefix = "googletest-release-1.8.0/googletest",
+    strip_prefix = "googletest-release-1.8.0",
     url = "https://github.com/google/googletest/archive/release-1.8.0.zip",
 )
 
@@ -226,7 +228,7 @@ new_git_repository(
 new_git_repository(
     name = "go_stringset",
     build_file = "third_party/go/stringset.BUILD",
-    commit = "f8c796889b53ece50aada924fbbd0f98cf684de4",
+    commit = "09623af4dbc0fdd85acd9ed0da7f5028aa03c139",
     remote = "https://bitbucket.org/creachadair/stringset.git",
 )
 
