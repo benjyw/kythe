@@ -29,6 +29,7 @@ import com.google.devtools.kythe.platform.shared.StatisticsCollector;
 import com.google.devtools.kythe.proto.Analysis.CompilationUnit.FileInput;
 import com.google.devtools.kythe.proto.Storage.VName;
 import com.google.devtools.kythe.util.Span;
+import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symbol.ClassSymbol;
 import com.sun.tools.javac.code.Symbol.MethodSymbol;
@@ -109,19 +110,88 @@ public class JavaEntrySets extends KytheEntrySets {
 
       NodeKind kind = elementNodeKind(sym.getKind());
       NodeBuilder builder = kind != null ? newNode(kind) : newNode(sym.getKind().toString());
-      node =
-          builder
-              .setCorpusPath(CorpusPath.fromVName(v))
-              .addSignatureSalt(signature)
-              .addSignatureSalt("" + hashSymbol(sym))
-              .setProperty("format", format)
-              .build();
+      builder = builder
+          .setCorpusPath(CorpusPath.fromVName(v))
+          .addSignatureSalt(signature)
+          .addSignatureSalt("" + hashSymbol(sym))
+          .setProperty("format", format);
+      builder = setFlagProperties(sym, builder);
+      node = builder.build();
       emitName(node, signature);
       node.emit(getEmitter());
     }
 
     symbolNodes.put(sym, node);
     return node;
+  }
+
+  private static NodeBuilder setFlagProperties(Symbol sym, NodeBuilder builder) {
+    long flags = sym.flags();
+    switch(sym.getKind()) {
+      case ENUM:
+      case CLASS:
+      case ANNOTATION_TYPE:
+      case INTERFACE:
+        builder = builder.setProperty("access", accessFlag(flags));
+        builder = setPropertyIfFlag(builder, flags & Flags.STATIC, "static");
+        builder = setPropertyIfFlag(builder, flags & Flags.FINAL, "final");
+        builder = setPropertyIfFlag(builder, flags & Flags.ABSTRACT, "abstract");
+        break;
+      case METHOD:
+      case CONSTRUCTOR:
+        builder = builder.setProperty("access", accessFlag(flags));
+        builder = setPropertyIfFlag(builder, flags & Flags.STATIC, "static");
+        builder = setPropertyIfFlag(builder, flags & Flags.FINAL, "final");
+        builder = setPropertyIfFlag(builder, flags & Flags.SYNCHRONIZED, "synchronized");
+        builder = setPropertyIfFlag(builder, flags & Flags.VARARGS, "varargs");
+        builder = setPropertyIfFlag(builder, flags & Flags.NATIVE, "native");
+        builder = setPropertyIfFlag(builder, flags & Flags.ABSTRACT, "abstract");
+        builder = setPropertyIfFlag(builder, flags & Flags.GENERATEDCONSTR, "generated");
+        break;
+      case FIELD:
+      case ENUM_CONSTANT:
+        builder = builder.setProperty("access", accessFlag(flags));
+        builder = setPropertyIfFlag(builder, flags & Flags.STATIC, "static");
+        builder = setPropertyIfFlag(builder, flags & Flags.FINAL, "final");
+        builder = setPropertyIfFlag(builder, flags & Flags.VOLATILE, "volatile");
+        builder = setPropertyIfFlag(builder, flags & Flags.TRANSIENT, "transient");
+        break;
+      case PARAMETER:
+        builder = setPropertyIfFlag(builder, flags & Flags.FINAL, "final");
+        builder = setPropertyIfFlag(builder, flags & Flags.VARARGS, "varargs");
+        break;
+      case PACKAGE:
+      case LOCAL_VARIABLE:
+      case EXCEPTION_PARAMETER:
+      case STATIC_INIT:
+      case INSTANCE_INIT:
+      case TYPE_PARAMETER:
+      case RESOURCE_VARIABLE:
+        // No relevant flags.
+        break;
+      case OTHER:
+      default:
+        throw new IllegalArgumentException("Symbol [" + sym + "] has unexpected kind [" +
+                                           sym.getKind() + "].");
+    }
+    return builder;
+  }
+
+  private static NodeBuilder setPropertyIfFlag(NodeBuilder builder, long flag, String name) {
+    return (flag == 0) ? builder : builder.setProperty(name, "true");
+  }
+
+  private static String accessFlag(long flags) {
+    switch((int)flags & Flags.AccessFlags) {
+      case Flags.PUBLIC:
+        return "public";
+      case Flags.PRIVATE:
+        return "private";
+      case Flags.PROTECTED:
+        return "protected";
+      default:
+        return "default";
+    }
   }
 
   public EntrySet getDoc(Positions filePositions, String text, Iterable<EntrySet> params) {
