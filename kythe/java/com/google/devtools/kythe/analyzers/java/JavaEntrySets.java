@@ -115,7 +115,7 @@ public class JavaEntrySets extends KytheEntrySets {
           .addSignatureSalt(signature)
           .addSignatureSalt("" + hashSymbol(sym))
           .setProperty("format", format);
-      builder = addSpecifics(sym, builder);
+      builder = setFlagProperties(sym, builder);
       node = builder.build();
       emitName(node, signature);
       node.emit(getEmitter());
@@ -125,28 +125,72 @@ public class JavaEntrySets extends KytheEntrySets {
     return node;
   }
 
-  private static NodeBuilder addSpecifics(Symbol sym, NodeBuilder builder) {
+  private static NodeBuilder setFlagProperties(Symbol sym, NodeBuilder builder) {
+    long flags = sym.flags();
     switch(sym.getKind()) {
-      case CLASS:
       case ENUM:
+      case CLASS:
+      case ANNOTATION_TYPE:
       case INTERFACE:
-        builder = builder.setProperty("access", accessFlag(sym.flags()));
+        builder = builder.setProperty("access", accessFlag(flags));
+        builder = setPropertyIfFlag(builder, flags & Flags.STATIC, "static");
+        builder = setPropertyIfFlag(builder, flags & Flags.FINAL, "final");
+        builder = setPropertyIfFlag(builder, flags & Flags.ABSTRACT, "abstract");
         break;
+      case METHOD:
+      case CONSTRUCTOR:
+        builder = builder.setProperty("access", accessFlag(flags));
+        builder = setPropertyIfFlag(builder, flags & Flags.STATIC, "static");
+        builder = setPropertyIfFlag(builder, flags & Flags.FINAL, "final");
+        builder = setPropertyIfFlag(builder, flags & Flags.SYNCHRONIZED, "synchronized");
+        builder = setPropertyIfFlag(builder, flags & Flags.VARARGS, "varargs");
+        builder = setPropertyIfFlag(builder, flags & Flags.NATIVE, "native");
+        builder = setPropertyIfFlag(builder, flags & Flags.ABSTRACT, "abstract");
+        builder = setPropertyIfFlag(builder, flags & Flags.GENERATEDCONSTR, "generated");
+        break;
+      case FIELD:
+      case ENUM_CONSTANT:
+        builder = builder.setProperty("access", accessFlag(flags));
+        builder = setPropertyIfFlag(builder, flags & Flags.STATIC, "static");
+        builder = setPropertyIfFlag(builder, flags & Flags.FINAL, "final");
+        builder = setPropertyIfFlag(builder, flags & Flags.VOLATILE, "volatile");
+        builder = setPropertyIfFlag(builder, flags & Flags.TRANSIENT, "transient");
+        break;
+      case PARAMETER:
+        builder = setPropertyIfFlag(builder, flags & Flags.FINAL, "final");
+        builder = setPropertyIfFlag(builder, flags & Flags.VARARGS, "varargs");
+        break;
+      case PACKAGE:
+      case LOCAL_VARIABLE:
+      case EXCEPTION_PARAMETER:
+      case STATIC_INIT:
+      case INSTANCE_INIT:
+      case TYPE_PARAMETER:
+      case RESOURCE_VARIABLE:
+        // No relevant flags.
+        break;
+      case OTHER:
       default:
-        break;
+        throw new IllegalArgumentException("Symbol [" + sym + "] has unexpected kind [" +
+                                           sym.getKind() + "].");
     }
     return builder;
   }
 
+  private static NodeBuilder setPropertyIfFlag(NodeBuilder builder, long flag, String name) {
+    return (flag == 0) ? builder : builder.setProperty(name, "true");
+  }
+
   private static String accessFlag(long flags) {
-    if ((flags & Flags.PUBLIC) != 0) {
-      return "public";
-    } else if ((flags & Flags.PRIVATE) != 0) {
-      return "private";
-    } else if ((flags & Flags.PROTECTED) != 0) {
-      return "protected";
-    } else {
-      return "default";
+    switch((int)flags & Flags.AccessFlags) {
+      case Flags.PUBLIC:
+        return "public";
+      case Flags.PRIVATE:
+        return "private";
+      case Flags.PROTECTED:
+        return "protected";
+      default:
+        return "default";
     }
   }
 

@@ -13,6 +13,7 @@ public class Classes {
 
   //- DefaultCtor childof N
   //- DefaultCtor.node/kind function
+  //- DefaultCtor.generated true
   //- DefaultCtor typed DefaultCtorType
   //- DefaultCtorType param.0 FnBuiltin
   //- DefaultCtorType param.1 N
@@ -22,14 +23,17 @@ public class Classes {
   //- SI.node/kind record
   //- SI.subkind class
   //- SI.access private
+  //- SI.static true
+  //- SI.abstract true
   //- SI childof N
-  private static class StaticInner {
+  private static abstract class StaticInner {
     //- Ctor childof SI
     //- Ctor.node/kind function
     //- Ctor typed CtorType
     //- CtorType param.0 FnBuiltin
     //- CtorType param.1 SI
     //- @StaticInner defines/binding Ctor
+    //- !{ Ctor.generated true }
     public StaticInner() {}
   }
 
@@ -37,7 +41,7 @@ public class Classes {
   //- I.node/kind record
   //- I.subkind class
   //- I.access protected
-  //- I.access protected
+  //- I.final true
   //- I childof N
   protected final class Inner {}
 
